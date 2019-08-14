@@ -12,18 +12,17 @@ rabbitmq的客户端连接池
 github.com/streadway/amqp
 
 # 开始使用
-- go get github.com/Braveheart7854/rabbitmq-pool
+- go get github.com/Braveheart7854/rabbitmqPool
 
 - 代码如下
-    AmqpServer = Service{
-		AmqpUrl:config.AmqpUrl,
-		ConnectionNum:10,
-		ChannelNum:100,
-	}
-	InitAmqp()
-	
-	message,err := AmqpServer.PutIntoQueue(ExchangeName,RouteKey,data)
-	if err != nil{
-	  //若有错误，则表示消息发送失败，做好失败消息处理
-	  Logger.Notice(message)
-	}
+-     rabbitmqPool.AmqpServer = rabbitmqPool.Service{
+- 		AmqpUrl:config.AmqpUrl,
+- 		ConnectionNum:10,
+- 		ChannelNum:100,
+- 	  }
+-     rabbitmqPool.InitAmqp()	
+- 	  message,err := rabbitmqPool.AmqpServer.PutIntoQueue(ExchangeName,RouteKey,data)
+- 	  if err != nil{
+- 	  //若有错误，则表示消息发送失败，做好失败消息处理
+- 	  Logger.Notice(message)
+-  	  }
