@@ -17,7 +17,7 @@ github.com/streadway/amqp
 
 - 代码如下
 -     rabbitmqPool.AmqpServer = rabbitmqPool.Service{
-- 		AmqpUrl:config.AmqpUrl,
+- 		AmqpUrl:"amqp://guest:guest@localhost:5672/",
 - 		ConnectionNum:10,
 - 		ChannelNum:100,
 - 	  }
