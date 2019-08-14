@@ -270,12 +270,11 @@ func (S *Service) rePublish(channelId int,exchangeName string, errmsg error,rout
 }
 
 func (S *Service) backChannelId(channelId int,ch *amqp.Channel){
-	if channelId >= 0 {
-		S.idelChannels = append(S.idelChannels,channelId)
-		delete(S.busyChannels,channelId)
-	}else{
-		//ch.Close()
-	}
+	S.m.Lock()
+	defer S.m.Unlock()
+	S.idelChannels = append(S.idelChannels,channelId)
+	delete(S.busyChannels,channelId)
+	return
 }
 
 func (S *Service) PutIntoQueue(exchangeName string, routeKey string, notice interface{}) (message interface{}, puberr error ){
