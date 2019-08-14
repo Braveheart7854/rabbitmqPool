@@ -6,7 +6,8 @@ rabbitmq的客户端连接池
 - 每个connection上建立的channel数量池
 - 有失败重试机制
 - 每个connection与channel都有断线重连机制
-- 每个消息都有confirm机制，避免消息丢失
+- 每个消息都有confirm机制，避免生产者消息丢失
+- 目前提供了生产者，而消费者后续会补上
 
 # 依赖包
 github.com/streadway/amqp
