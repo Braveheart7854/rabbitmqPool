@@ -25,5 +25,5 @@ github.com/streadway/amqp
 - 	  message,err := rabbitmqPool.AmqpServer.PutIntoQueue(ExchangeName,RouteKey,data)
 - 	  if err != nil{
 - 	  //若有错误，则表示消息发送失败，做好失败消息处理
-- 	  Logger.Notice(message)
+- 	  rabbitmqPool.Logger.Notice(message)
 -  	  }
