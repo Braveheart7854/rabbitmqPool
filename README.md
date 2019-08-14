@@ -1,5 +1,6 @@
 # rabbitmqPool
 rabbitmq的客户端连接池
+(使用rabbitmq文档提供的使用实例时，发现connection和channel没有实现复用，效率很低，由于一直没有找到实现connection和channel复用的相关代码库，故自己实现一个)
 
 # 实现的功能
 - 可以设置client与rabbitmq服务端的connection池
