@@ -2,8 +2,8 @@
 rabbitmq的客户端连接池
 
 # 实现的功能
-- 可以设置client与rabbitmq服务端的connection数量池
-- 每个connection上建立的channel数量池
+- 可以设置client与rabbitmq服务端的connection池
+- 每个connection上建立的channel池
 - 有失败重试机制
 - 每个connection与channel都有断线重连机制
 - 每个消息都有confirm机制，避免生产者消息丢失
