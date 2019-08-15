@@ -30,7 +30,7 @@ func init() {
 	}
 }
 
-func (logger *logger) write(filePath string,msg ...interface{}) {
+func (logger *logger) write(filePath string,level string, category string, msg ...interface{}) {
 	if _, err := os.Stat(filePath); err != nil {
 		if os.IsNotExist(err) {
 			_, err := os.Create(filePath)
@@ -49,14 +49,14 @@ func (logger *logger) write(filePath string,msg ...interface{}) {
 	}
 
 	// 创建一个日志对象
-	l := log.New(logFile, logger.level, log.LstdFlags)
+	l := log.New(logFile, level, log.LstdFlags)
 
 	s := make([]interface{}, 1)
-	s[0] = "[" + logger.category + "]"
+	s[0] = "[" + category + "]"
 	msg = append(s, msg)
 
 	l.Println(msg...)
-	logger.category = ""
+	//logger.category = ""
 }
 
 func (logger *logger) Category(category string) *logger {
@@ -65,18 +65,15 @@ func (logger *logger) Category(category string) *logger {
 }
 
 func (logger *logger) Info(msg ...interface{}) {
-	logger.level = "[Info]"
-	logger.write(logger.File,msg...)
+	logger.write(logger.File,"[Info]","",msg...)
 }
 
 func (logger *logger) Error(msg ...interface{}) {
-	logger.level = "[Error]"
-	logger.write(logger.File,msg...)
+	logger.write(logger.File,"[Error]","",msg...)
 }
 
-func (logger *logger) Notice(msg ...interface{}){
-	logger.level = "[Notice]"
-	logger.write(logger.DataFile,msg...)
+func (logger *logger) Notice(category string, msg ...interface{}){
+	logger.write(logger.DataFile,"[Notice]",category,msg...)
 }
 
 
