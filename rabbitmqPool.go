@@ -1,7 +1,6 @@
 package rabbitmqPool
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"github.com/streadway/amqp"
@@ -22,11 +21,6 @@ type Service struct {
 	idelChannels  []int
 	busyChannels  map[int]int
 	m             *sync.Mutex
-	wg            *sync.WaitGroup
-	ctx           context.Context
-	cancel        context.CancelFunc
-	connectIdChan chan int
-	lockConnectIds map[int]bool
 }
 
 type channel struct {
@@ -53,11 +47,6 @@ func InitAmqp(){
 		AmqpServer.ChannelNum = 10
 	}
 	AmqpServer.m = new(sync.Mutex)
-	AmqpServer.wg = new(sync.WaitGroup)
-	AmqpServer.ctx, AmqpServer.cancel = context.WithTimeout(context.Background(),waitConfirmTime)
-	AmqpServer.lockConnectIds = make(map[int]bool)
-	AmqpServer.connectIdChan = make(chan int)
-
 	AmqpServer.connectPool()
 	AmqpServer.channelPool()
 }
@@ -79,10 +68,10 @@ func (S *Service) connectPool(){
 func (S *Service) channelPool(){
 	S.channels = make(map[int]channel)
 	//S.idelChannels = make(map[int]int)
-	for index,_ := range S.connections{
+	for index,connection := range S.connections{
 		for j:=0;j<S.ChannelNum ;j++ {
 			key := index*S.ChannelNum+j
-			S.channels[key] = S.createChannel(index)
+			S.channels[key] = S.createChannel(index,connection)
 			//S.idelChannels[key] = key
 			S.idelChannels = append(S.idelChannels,key)
 		}
@@ -99,10 +88,15 @@ func (S *Service) connect()*amqp.Connection{
 func (S *Service) recreateChannel(connectId int, err error)(ch *amqp.Channel){
 	if strings.Index(err.Error(),"channel/connection is not open") >= 0 || strings.Index(err.Error(),"CHANNEL_ERROR - expected 'channel.open'") >=0{
 		//S.connections[connectId].Close()
+		var newConn *amqp.Connection
 		if S.connections[connectId].IsClosed() {
-			S.lockWriteConnect(connectId)
+			newConn = S.connect()
+		}else {
+			newConn = S.connections[connectId]
 		}
-		ch, err = S.connections[connectId].Channel()
+		S.lockWriteConnect(connectId,newConn)
+		//S.connections[connectId] = newConn
+		ch, err = newConn.Channel()
 		failOnError(err, "Failed to open a channel")
 	}else{
 		failOnError(err, "Failed to open a channel")
@@ -110,46 +104,13 @@ func (S *Service) recreateChannel(connectId int, err error)(ch *amqp.Channel){
 	return
 }
 
-func (S *Service) lockWriteConnect(connectId int){
-
+func (S *Service) lockWriteConnect(connectId int,newConn *amqp.Connection){
 	S.m.Lock()
-	if !S.lockConnectIds[connectId] {
-		S.lockConnectIds[connectId] = true
-		S.m.Unlock()
-
-		go func(connectId int) {
-			S.wg.Add(1)
-			defer S.wg.Done()
-
-			S.connections[connectId] = S.connect()
-			S.connectIdChan <- connectId
-
-		}(connectId)
-	}else{
-		S.m.Unlock()
-	}
-
-	for {
-		select {
-		case cid := <-S.connectIdChan:
-
-			delete(S.lockConnectIds, cid)
-
-			if len(S.lockConnectIds) == 0 {
-				S.wg.Wait()
-				return
-			} else {
-				continue
-			}
-		case <-time.After(waitConfirmTime):
-			S.lockConnectIds = make(map[int]bool)
-			S.wg.Wait()
-			return
-		}
-	}
+	defer S.m.Unlock()
+	S.connections[connectId] = newConn
 }
 
-func (S *Service) createChannel(connectId int)channel{
+func (S *Service) createChannel(connectId int,conn *amqp.Connection)channel{
 	var notifyClose = make(chan *amqp.Error)
 	var notifyConfirm = make(chan amqp.Confirmation)
 
@@ -157,10 +118,10 @@ func (S *Service) createChannel(connectId int)channel{
 		notifyClose:notifyClose,
 		notifyConfirm:notifyConfirm,
 	}
-	if S.connections[connectId].IsClosed() {
-		S.lockWriteConnect(connectId)
+	if conn.IsClosed() {
+		conn = S.connect()
 	}
-	ch, err := S.connections[connectId].Channel()
+	ch, err := conn.Channel()
 	if err != nil {
 		ch = S.recreateChannel(connectId, err)
 	}
@@ -228,13 +189,11 @@ func (S *Service) reDeclareExchange(channelId int,exchangeName string, err error
 
 		//S.channels[channelId].Close()
 		if channelId == -1{
-			rand.Seed(time.Now().Unix())
-			index := rand.Intn(S.ConnectionNum)
-			connectionId = index
+			connectionId = 0
 		}else{
 			connectionId = int(channelId/S.ChannelNum)
 		}
-		cha := S.createChannel(connectionId)
+		cha := S.createChannel(connectionId,S.connections[connectionId])
 
 		S.lockWriteChannel(channelId,cha)
 		//S.channels[channelId] = cha
@@ -332,10 +291,9 @@ func (S *Service) PutIntoQueue(exchangeName string, routeKey string, notice inte
 	}()
 
 	ch,channelId := S.getChannel()
+	cha := channel{}
 	if ch == nil {
-		rand.Seed(time.Now().Unix())
-		index := rand.Intn(S.ConnectionNum)
-		cha := S.createChannel(index)
+		cha = S.createChannel(0,S.connections[0])
 		defer cha.ch.Close()
 		ch = cha.ch
 		//fmt.Println("ch: ",ch)
@@ -361,12 +319,19 @@ func (S *Service) PutIntoQueue(exchangeName string, routeKey string, notice inte
 
 		select {
 		case confirm := <-S.channels[channelId].notifyConfirm:
+			//log.Printf(" [%s] Sent %d message %s", routeKey, confirm.DeliveryTag, data)
 			if confirm.Ack {
-				//log.Printf(" [%s] Sent %d message %s", routeKey, confirm.DeliveryTag, data)
 				S.backChannelId(channelId, ch)
 
 				return notice, nil
 			}
+			return notice,errors.New("ack failed")
+		case chaConfirm := <-cha.notifyConfirm:
+			//log.Println("加班车",data)
+			if chaConfirm.Ack {
+				return notice, nil
+			}
+			return notice,errors.New("ack failed")
 		case <-time.After(waitConfirmTime):
 			//	log.Printf("message: %s data: %s", "Can not receive the confirm.", data)
 			S.backChannelId(channelId, ch)
@@ -374,5 +339,5 @@ func (S *Service) PutIntoQueue(exchangeName string, routeKey string, notice inte
 			return notice, confirmErr
 		}
 	}
-
+	return
 }
