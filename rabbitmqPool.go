@@ -46,6 +46,7 @@ func InitAmqp(){
 	if AmqpServer.ChannelNum == 0 {
 		AmqpServer.ChannelNum = 10
 	}
+	AmqpServer.busyChannels = make(map[int]int)
 	AmqpServer.m = new(sync.Mutex)
 	AmqpServer.connectPool()
 	AmqpServer.channelPool()
@@ -150,7 +151,7 @@ func (S *Service) getChannel()(*amqp.Channel,int){
 		index := rand.Intn(idelLength)
 		channelId := S.idelChannels[index]
 		S.idelChannels = append(S.idelChannels[:index], S.idelChannels[index+1:]...)
-		S.busyChannels = make(map[int]int)
+		//S.busyChannels = make(map[int]int)
 		S.busyChannels[channelId] = channelId
 
 		ch := S.channels[channelId].ch
